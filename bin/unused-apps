@@ -14,18 +14,22 @@ Arguments:
   DAYS    Minimum days since last use (default: 30)
 
 Options:
-  -h, --help    Show this help message
+  -u, --untracked    Also list apps with no recorded launch date
+  -h, --help         Show this help message
 
 Searches /Applications and ~/Applications. Apps with no recorded launch date
-are excluded (they may have never been opened or predate Spotlight indexing).
+are excluded by default (they may have never been opened or predate Spotlight
+indexing). Use --untracked to print them separately.
 EOF
 }
 
 DAYS=30
+SHOW_UNTRACKED=0
 
 for arg in "$@"; do
     case "$arg" in
         -h|--help) usage; exit 0 ;;
+        -u|--untracked) SHOW_UNTRACKED=1 ;;
         ''|*[!0-9]*) echo "Error: invalid argument '$arg'" >&2; usage >&2; exit 1 ;;
         *) DAYS="$arg" ;;
     esac
@@ -38,6 +42,7 @@ fi
 
 NOW=$(date "+%s")
 results=()
+untracked=()
 total_found=0
 skipped_no_date=0
 
@@ -49,6 +54,7 @@ for dir in /Applications "$HOME/Applications"; do
 
         if [[ "$last_used" == "(null)" || -z "$last_used" ]]; then
             skipped_no_date=$(( skipped_no_date + 1 ))
+            untracked+=("$(basename "$app" .app)")
             continue
         fi
 
@@ -69,6 +75,15 @@ else
     echo ""
     printf '%s\n' "${results[@]}" | sort -rn | while IFS=$'\t' read -r days name; do
         printf "  %-40s %d days\n" "$name" "$days"
+    done
+fi
+
+if [[ $SHOW_UNTRACKED -eq 1 && ${#untracked[@]} -gt 0 ]]; then
+    echo ""
+    echo "Apps with no recorded launch date:"
+    echo ""
+    printf '%s\n' "${untracked[@]}" | sort | while IFS= read -r name; do
+        printf "  %s\n" "$name"
     done
 fi
 

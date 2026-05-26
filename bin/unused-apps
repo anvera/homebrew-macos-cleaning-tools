@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_NAME=$(basename "$0")
+
+usage() {
+    cat <<EOF
+Usage: $SCRIPT_NAME [OPTIONS] [DAYS]
+
+List installed applications that haven't been opened in at least DAYS days,
+sorted from longest unused to most recently used.
+
+Arguments:
+  DAYS    Minimum days since last use (default: 30)
+
+Options:
+  -h, --help    Show this help message
+
+Searches /Applications and ~/Applications. Apps with no recorded launch date
+are excluded (they may have never been opened or predate Spotlight indexing).
+EOF
+}
+
+DAYS=30
+
+for arg in "$@"; do
+    case "$arg" in
+        -h|--help) usage; exit 0 ;;
+        ''|*[!0-9]*) echo "Error: invalid argument '$arg'" >&2; usage >&2; exit 1 ;;
+        *) DAYS="$arg" ;;
+    esac
+done
+
+if [[ "$DAYS" -lt 1 ]]; then
+    echo "Error: DAYS must be at least 1" >&2
+    exit 1
+fi
+
+NOW=$(date "+%s")
+results=()
+total_found=0
+skipped_no_date=0
+
+for dir in /Applications "$HOME/Applications"; do
+    [[ -d "$dir" ]] || continue
+    while IFS= read -r -d '' app; do
+        total_found=$(( total_found + 1 ))
+        last_used=$(mdls -raw -name kMDItemLastUsedDate "$app" 2>/dev/null)
+
+        if [[ "$last_used" == "(null)" || -z "$last_used" ]]; then
+            skipped_no_date=$(( skipped_no_date + 1 ))
+            continue
+        fi
+
+        last_used_epoch=$(date -jf "%Y-%m-%d %H:%M:%S %z" "$last_used" "+%s" 2>/dev/null) || continue
+
+        days_unused=$(( (NOW - last_used_epoch) / 86400 ))
+        [[ $days_unused -ge $DAYS ]] || continue
+
+        app_name=$(basename "$app" .app)
+        results+=("$days_unused"$'\t'"$app_name")
+    done < <(find "$dir" -maxdepth 1 -name "*.app" -print0 2>/dev/null)
+done
+
+if [[ ${#results[@]} -eq 0 ]]; then
+    echo "No apps found unused for $DAYS or more days."
+else
+    echo "Apps not used in the last $DAYS days:"
+    echo ""
+    printf '%s\n' "${results[@]}" | sort -rn | while IFS=$'\t' read -r days name; do
+        printf "  %-40s %d days\n" "$name" "$days"
+    done
+fi
+
+if [[ $skipped_no_date -gt 0 ]]; then
+    echo "" >&2
+    echo "Note: $skipped_no_date of $total_found apps had no recorded launch date and were excluded." >&2
+    if [[ $skipped_no_date -gt $(( total_found * 3 / 4 )) ]]; then
+        echo "      A high skip rate may mean Spotlight indexing is disabled or /Applications" >&2
+        echo "      is in the Spotlight Privacy list (System Settings → Siri & Spotlight)." >&2
+    fi
+fi

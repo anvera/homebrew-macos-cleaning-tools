@@ -1,8 +1,8 @@
 class MacosCleaningTools < Formula
   desc "Collection of macOS cleaning and maintenance scripts"
   homepage "https://github.com/anvera/homebrew-macos-cleaning-tools"
-  url "https://github.com/anvera/homebrew-macos-cleaning-tools/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "22d4387f1d40018cbfd3bc380babd71e01eab4ee7e75fe5e17b2df37603d91ee"
+  url "https://github.com/anvera/homebrew-macos-cleaning-tools/archive/refs/tags/v0.2.0.tar.gz"
+  sha256 "ca24cf3d388c348a62ca2af39526b2754cfb517b926194f623f4a5832ae8ae8b"
   license "MIT"
 
   def install
